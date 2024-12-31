@@ -62,17 +62,19 @@ BOT = MyBot()
 
 # Listen for incoming requests on /api/messages
 async def messages(req: Request) -> Response:
+    print(f"Received {req.method} request")
     if "application/json" in req.headers["Content-Type"]:
         body = await req.json()
-        activity = Activity().deserialize(body)
-        auth_header = req.headers["Authorization"] if "Authorization" in req.headers else ""
-        response = await ADAPTER.process_activity(activity, auth_header, BOT.on_turn)
-        if response:
-            return json_response(data=response.body, status=response.status)
-        return Response(status=201)
-    else:
-        return Response(status=415)  # Only accept JSON content
+        # continue processing
 
+
+    activity = Activity().deserialize(body)
+    auth_header = req.headers["Authorization"] if "Authorization" in req.headers else ""
+
+    response = await ADAPTER.process_activity(activity, auth_header, BOT.on_turn)
+    if response:
+        return json_response(data=response.body, status=response.status)
+    return Response(status=201)
 
 
 APP = web.Application(middlewares=[aiohttp_error_middleware])
