@@ -1,0 +1,2 @@
+To create a bot use:
+cookiecutter https://github.com/microsoft/BotBuilder-Samples/releases/download/Templates/echo.zip
