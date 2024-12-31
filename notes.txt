@@ -1,2 +1,13 @@
+Install Bot Framework Emulator:
+https://github.com/Microsoft/BotFramework-Emulator/releases/tag/v4.15.1
+
+When testing the bot first run the Bot Framework then run the script:
+python app.py
+
+To be able to run the script Install requirements.txt first
+pip install -r requirements.txt
+
+-----------------------This is only if you want to create another bot----------------
+***Don't do this in this enviornment**
 To create a bot use:
 cookiecutter https://github.com/microsoft/BotBuilder-Samples/releases/download/Templates/echo.zip
