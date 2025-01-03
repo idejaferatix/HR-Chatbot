@@ -1,6 +1,7 @@
 import csv
 import sys
 import traceback
+import asyncio
 from datetime import datetime
 from aiohttp import web
 from aiohttp.web import Request, Response, json_response
@@ -28,14 +29,22 @@ class MyBot:
     async def on_turn(self, turn_context: TurnContext):
         if turn_context.activity.text:
             user_input = turn_context.activity.text.strip().lower()
+
+            # Show typing activity BEFORE processing
+            await turn_context.send_activity(Activity(type=ActivityTypes.typing))
+            await asyncio.sleep(2)
+
+            # Check if the user input matches a trigger
             if user_input in self.triggers:
+                # Send the actual response
                 await turn_context.send_activity(self.triggers[user_input])
             else:
                 await turn_context.send_activity("Sorry, I don't understand that command.")
         else:
-            await turn_context.send_activity("Received non-message activity type.")
-
-
+            # Handle non-message activities
+            await turn_context.send_activity(Activity(type=ActivityTypes.typing))
+            await asyncio.sleep(2)
+            await turn_context.send_activity("Hello, how can I help you?")
 
 # Load triggers and responses from a CSV file
 def load_csv_data(file_path):
