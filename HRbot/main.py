@@ -11,7 +11,7 @@ from botbuilder.core import (
     BotFrameworkAdapter,
 )
 from botbuilder.core.integration import aiohttp_error_middleware
-from botbuilder.schema import Activity, ActivityTypes
+from botbuilder.schema import Activity, ActivityTypes, SuggestedActions, CardAction
 from config import DefaultConfig
 
 # Load configuration from config.py
@@ -30,21 +30,75 @@ class MyBot:
         if turn_context.activity.text:
             user_input = turn_context.activity.text.strip().lower()
 
-            # Show typing activity BEFORE processing
-            await turn_context.send_activity(Activity(type=ActivityTypes.typing))
-            await asyncio.sleep(2)
-
             # Check if the user input matches a trigger
             if user_input in self.triggers:
+                # Show typing indicator before processing response
+                await turn_context.send_activity(Activity(type=ActivityTypes.typing))
+                await asyncio.sleep(2)
+
                 # Send the actual response
-                await turn_context.send_activity(self.triggers[user_input])
+                response = self.triggers[user_input]
+                await turn_context.send_activity(response)
+
+                # Log the interaction
+                self.log_interaction(turn_context.activity.id, turn_context.activity.text, response, "Pending")
+
+                # Ask for feedback after the response with a display delay
+                await asyncio.sleep(1)  # Short delay before showing buttons
+                await self.send_feedback_request(turn_context, turn_context.activity.id)
             else:
+                # Handle unrecognized input
                 await turn_context.send_activity("Sorry, I don't understand that command.")
         else:
             # Handle non-message activities
             await turn_context.send_activity(Activity(type=ActivityTypes.typing))
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
             await turn_context.send_activity("Hello, how can I help you?")
+
+    async def send_feedback_request(self, turn_context: TurnContext, message_id):
+        # Create buttons for feedback
+        feedback_buttons = SuggestedActions(
+            actions=[
+                CardAction(title="👍", type="imBack", value="like"),
+                CardAction(title="👎", type="imBack", value="dislike")
+            ]
+        )
+
+        # Send feedback request with buttons
+        await turn_context.send_activity(
+            Activity(
+                type=ActivityTypes.message,
+                text="Was this response helpful?",
+                suggested_actions=feedback_buttons
+            )
+        )
+
+    def log_interaction(self, message_id, question, response, feedback):
+        # Log interaction in CSV file
+        with open('feedback_log.csv', mode='a', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            writer.writerow([message_id, question, response, feedback])
+
+    async def process_feedback(self, turn_context: TurnContext):
+        # Process feedback when user clicks buttons
+        feedback = turn_context.activity.text
+        message_id = turn_context.activity.reply_to_id
+
+        # Update the feedback in the CSV file
+        rows = []
+        with open('feedback_log.csv', mode='r', newline='', encoding='utf-8') as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if row[0] == message_id:
+                    row[3] = feedback  # Update feedback column
+                rows.append(row)
+
+        with open('feedback_log.csv', mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            writer.writerows(rows)
+
+        # Acknowledge feedback
+        await turn_context.send_activity("Thank you for your feedback!")
 
 # Load triggers and responses from a CSV file
 def load_csv_data(file_path):
@@ -82,6 +136,12 @@ async def messages(req: Request) -> Response:
         body = await req.json()
         activity = Activity().deserialize(body)
         auth_header = req.headers["Authorization"] if "Authorization" in req.headers else ""
+
+        # Check if feedback is being processed
+        if activity.text in ["like", "dislike"]:
+            await BOT.process_feedback(TurnContext(ADAPTER, activity))
+            return Response(status=201)
+
         response = await ADAPTER.process_activity(activity, auth_header, BOT.on_turn)
         if response:
             return json_response(data=response.body, status=response.status)
